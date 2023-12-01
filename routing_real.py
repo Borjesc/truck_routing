@@ -140,7 +140,7 @@ m = folium.Map(location=[36.1880, -94.5400], zoom_start=16)
 router = MapRouter("Arkansas, USA")
 
 # start and stop address
-start_address = "851 Ash ct, Siloam Springs, AR 72761"
+start_address = "2000 W University St, Siloam Springs, AR 72761"
 end_address = "555 Mckee Dr, Gentry, AR 72761"
 
 # get coordinates
