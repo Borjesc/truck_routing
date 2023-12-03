@@ -8,6 +8,8 @@ from geopy.distance import geodesic
 import requests
 import folium
 import os
+import osmnx as ox
+import networkx as nx
 
 # API keys
 openweathermap_api_key = 'ab108dea362ed6304d6016c0586c5db6'
@@ -61,6 +63,66 @@ def is_route_suitable(weather_conditions):
         if condition.lower() in weather_conditions.lower():
             return False
     return True
+
+def get_coordinates(address):
+    location = ox.geocode(address)
+    print(f"Coordinates for {address}: {location}")
+    return location
+
+def get_route_coordinates(start_address, end_address):
+    # Get start and end coordinates
+    start_point = get_coordinates(start_address)
+    end_point = get_coordinates(end_address)
+
+    # Retrieve the street network within the bounding box of the start and end points
+    G = ox.graph_from_bbox(start_point[0], end_point[0], start_point[1], end_point[1], network_type='drive')
+
+    # Find the shortest path using networkx
+    route = nx.shortest_path(G, source=ox.distance.nearest_nodes(G, start_point[1], start_point[0]),
+                              target=ox.distance.nearest_nodes(G, end_point[1], end_point[0]), weight='length')
+
+    # Extract coordinates from the nodes in the route
+    coordinates = [(G.nodes[node]['y'], G.nodes[node]['x']) for node in route]
+
+    return coordinates
+
+def save_coordinates_to_csv(coordinates, csv_file_path):
+    df = pd.DataFrame(coordinates, columns=['Latitude', 'Longitude'])
+    df.to_csv(csv_file_path, index=False)
+    print(f"Coordinates saved to {csv_file_path}")
+
+def get_user_input():
+    print("\nThe addresses need to look something like this: 2000 W University St, Siloam Springs, AR 72761\n")
+    while True:
+        start_address = input("Enter your starting address: ")
+        end_address = input("Enter your ending address: ")
+
+        start_point = get_coordinates(start_address)
+        end_point = get_coordinates(end_address)
+
+        if start_point and end_point:
+            break
+        else:
+            print("Failed to geocode one or both of the addresses. Please try again.")
+
+    return start_address, end_address
+
+start_address, end_address = get_user_input()
+
+# get route coordinates
+route_coordinates = get_route_coordinates(start_address, end_address)
+
+# Display the coordinates
+'''
+print("\nRoute coordinates:")
+for coord in route_coordinates:
+    print(coord)
+'''
+    
+# Save the coordinates to a CSV file
+csv_file_path = input("\nEnter the CSV file path to save the coordinates: ")
+save_coordinates_to_csv(route_coordinates, csv_file_path)
+print("\n")
 
 # Define the CSV file paths
 csv_file_paths = [
