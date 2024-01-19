@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trail</title>
+
+    <!-- Leaflet CSS and JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <!-- Leaflet Routing Machine CSS and JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+</head>
+<body>
+    <div id="banner">
+        <h1>Trail</h1>
+    </div>
+    <center><div id="map" style="height: 700px; width: 700px;"></div></center>
+
+    <!-- Input fields for start and end addresses -->
+    <div>
+        <label for="startAddress">Start Address:</label>
+        <input type="text" id="startAddress" placeholder="Enter start address">
+        <br>
+        <label for="endAddress">End Address:</label>
+        <input type="text" id="endAddress" placeholder="Enter end address">
+        <br>
+        <button onclick="calculateRoute()">Calculate Route</button>
+        <button onclick="exportToCSV()">Export to CSV</button>
+    </div>
+    
+
+    <script>
+        // Initialize the map
+        var map = L.map('map').setView([0, 0], 2);
+
+        // Add a tile layer (OpenStreetMap)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Variable to hold the routing control
+        var control;
+        var routeCoordinates = []; // To store coordinates for CSV export
+
+        // Function to calculate route based on user input
+        function calculateRoute() {
+            var startAddress = document.getElementById('startAddress').value;
+            var endAddress = document.getElementById('endAddress').value;
+
+            // Clear previous route if it exists
+            if (control) {
+                control.getPlan().setWaypoints([]);
+                control.removeFrom(map);
+                routeCoordinates = [];
+            }
+
+            // Convert addresses to coordinates
+            function getCoordinates(address, callback) {
+                // Use your geocoding service or API here
+                // This is a simplified example using the OpenStreetMap Nominatim API
+                var url = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(address);
+
+                fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        var coordinates = [data[0].lat, data[0].lon];
+                        callback(coordinates);
+                    });
+            }
+
+            // Get coordinates for start and end addresses
+            getCoordinates(startAddress, function (startCoords) {
+                getCoordinates(endAddress, function (endCoords) {
+                    // Create a Leaflet Routing Machine control and add it to the map
+                    control = L.Routing.control({
+                        waypoints: [
+                            L.latLng(startCoords[0], startCoords[1]),
+                            L.latLng(endCoords[0], endCoords[1])
+                        ],
+                        routeWhileDragging: true,
+                        plan: L.Routing.plan([
+                            L.latLng(startCoords[0], startCoords[1]),
+                            L.latLng(endCoords[0], endCoords[1])
+                        ], {
+                            createMarker: function (i, wp) {
+                                return L.marker(wp.latLng, {
+                                    draggable: false,
+                                    icon: L.divIcon({className: 'waypoint', html: String.fromCharCode(65 + i)})
+                                });
+                            }
+                        }),
+                        routeDragInterval: 250, // Set interval for dragging route
+                        showAlternatives: true, // Show alternative routes
+                        altLineOptions: {styles: [{color: 'green', opacity: 0.7}]} // Style for alternative routes
+                    }).addTo(map);
+
+                    // Event listener to switch between routes
+                    control.on('selectroute', function (e) {
+                        routeCoordinates = control.getPlan().routes[e.routeIndex].coordinates;
+                        control.getPlan().setWaypoints(routeCoordinates);
+                    });
+
+                    // Add weather layer to the map
+                    addWeatherLayer(startCoords, endCoords);
+                });
+            });
+        }
+
+        // Function to export coordinates to CSV
+        function exportToCSV() {
+            if (routeCoordinates.length === 0) {
+                alert('No route coordinates to export.');
+                return;
+            }
+
+            // Create CSV content
+            var csvContent = 'Latitude,Longitude\n';
+            routeCoordinates.forEach(function (coord) {
+                csvContent += coord.lat + ',' + coord.lng + '\n';
+            });
+
+            // Create Blob and initiate download
+            var blob = new Blob([csvContent], {type: 'text/csv'});
+            var link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'route_coordinates.csv';
+            link.click();
+        }
+
+        // Function to add weather layer to the map
+        function addWeatherLayer(startCoords, endCoords) {
+            // Use your OpenWeatherMap API key here
+            var openWeatherMapApiKey = 'ab108dea362ed6304d6016c0586c5db6';
+
+            // Get weather data for start and end locations
+            function getWeatherData(lat, lon, callback) {
+                var url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${openWeatherMapApiKey}`;
+
+                fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        callback(data);
+                    });
+            }
+
+            // Add weather markers to the map
+            getWeatherData(startCoords[0], startCoords[1], function (startWeatherData) {
+                getWeatherData(endCoords[0], endCoords[1], function (endWeatherData) {
+                    addWeatherMarker(startCoords, startWeatherData);
+                    addWeatherMarker(endCoords, endWeatherData);
+                });
+            });
+        }
+
+        // Function to add weather marker to the map
+        function addWeatherMarker(coords, weatherData) {
+            var icon = L.divIcon({
+                className: 'weather-marker',
+                html: `<div>Temperature: ${weatherData.main.temp}°C</div><div>Conditions: ${weatherData.weather[0].description}</div>`
+            });
+
+            L.marker(coords, { icon: icon }).addTo(map);
+        }
+    </script>
+
+    <style>
+        .weather-marker {
+            background-color: #fff;
+            border: 1px solid #000;
+            padding: 5px;
+            text-align: center;
+        }
+
+        #map {
+            height: 700px;
+            width: 700px; /* Set the width to be the same as the height */
+        }
+    </style>
+
+</body>
+</html>
