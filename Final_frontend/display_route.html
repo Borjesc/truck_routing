@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <title>Centered Map</title>
+    <style>
+        /* CSS to center the map */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <div id="map">
+        <!-- <form action="/submit" method="post"> -->
+            <input id="s" type="text" id="start" name="start"><br>
+            <input id="e" type="text" id="end" name="end">
+            <button onclick="fetchNewMap()">Submit</button>
+        <!-- </form> -->
+        <div id="routeMapContainer">
+            {% include 'route_map.html' %}
+        </div>
+    </div>
+</body>
+<script>
+    function fetchNewMap(){
+        var s = document.getElementById('s').value
+        var e = document.getElementById('e').value
+        console.log(e, s)
+        axios.post("/submit",{
+            start: s,
+            end: e
+        })
+        .then( response => {
+            console.log('response: ', response )
+            destroyAndRender(response.data);
+            // DESTROY ELEMENT IN HTML
+            // RERENDER THE ELEMENT
+        });
+    }
+    function destroyAndRender(newContent) {
+       // Get the parent container
+        var parentContainer = document.body;
+
+        // Get the existing div by id
+        var existingDiv = document.getElementById('routeMapContainer');
+
+        
+        parentContainer.removeChild(existingDiv);
+        
+
+        // Create a new div
+        var newDiv = document.createElement('div');
+            newDiv.id = 'routeMapContainer'; // Set a new id if needed
+
+            // Fetch content from route_map.html
+        fetch('route_map.html')
+            .then(response => response.text())
+            .then(data => {
+                    // Set the inner HTML of the new div with the fetched content
+                newDiv.innerHTML = data;
+                    // Add the new div to the parent container
+                parentContainer.appendChild(newDiv);
+            })
+            .catch(error => console.error('Error fetching route_map.html:', error));
+}
+    // Add the event listener for the button
+    // document.addEventListener('DOMContentLoaded', function() {
+    //     var submitButton = document.querySelector('button');
+    //     submitButton.addEventListener('click', fetchNewMap);
+    // });
+    
+</script>
+</html>

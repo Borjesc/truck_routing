@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trail</title>
+    <link rel="icon" href="{{ url_for('static', filename='trail_logo.png') }}" type="image/png">
+
+    <!-- Leaflet CSS and JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+</head>
+<body>
+    <div id="banner">
+        <a href="/home">
+            <img src="{{ url_for('static', filename='trail_logo.png') }}" alt="Trail Logo" id="logo">
+        </a>
+    </div>
+
+    
+    <div id="flex-container">
+    
+        <div id="map-container">
+            <div id="map" style="border-radius: 10px;"></div>
+        </div>
+    
+        <div id="right-table">
+            <table style="width: 100%;">
+                <tr>
+                    <td>
+                        <label for="startAddress">Start Address</label>
+                        <input type="text" id="startAddress" placeholder="Enter start address">
+                    </td>
+                </tr>
+                <tr>
+                    <td>
+                        <label for="endAddress">Destination</label>
+                        <input type="text" id="endAddress" placeholder="Enter Destination">
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="2" align="center">
+                        <button onclick="calculateRoute()">Calculate Route</button>
+                        <button onclick="save_route()">Save Route</button>
+                    </td>
+                </tr>
+                <!-- <tr>
+                    <td>
+                        <label for="startAddress">Start Address</label>
+                        <input type="text" id="startAddress" placeholder="Enter start address">
+                        <br>
+                        <label for="endAddress">Destination</label>
+                        <input type="text" id="endAddress" placeholder="Enter Destination">
+                        <br>
+                        <button onclick="calculateRoute()">Calculate Route</button>
+                        <button onclick="save_route()">Save Route</button>
+                    </td>
+                </tr> -->
+                <tr>
+                    <th colspan="2">Total Time/Compliance</th>
+                </tr>
+                <tr>
+                    <td id="compliance-cell">    </td>
+                </tr>
+                <tr>
+                    <th colspan="2">Grading</th>
+                </tr>
+                <tr>
+                    <td>Expected time</td>
+                    <td><input type="datetime-local" id="expected_time" placeholder="00h00m"></td>
+                </tr>
+                <tr>
+                    <td>Actual time</td>
+                    <td><input type="datetime-local" id="actual_time" placeholder="00h00m"></td>
+                </tr>
+                <tr>
+                    <td colspan="2">
+                        <button onclick="calculateGrade()">Calculate Grade</button>
+                    </td>
+                </tr>
+                <tr>
+                    <td>Grade</td>
+                    <td><span id="grade"></span></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    <br>
+  
+
+    <script>
+        var map = L.map('map',{minZoom: 4,maxBounds: [
+        [24.396308, -130.0], // Southwest coordinates
+        [49.384358, -66.93457] // Northeast coordinates
+        ], maxBoundsViscosity: 0.0}).setView([37.0902, -95.7129], 4);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution:''
+        }).addTo(map);
+
+        var control;
+        var routeCoordinates = [];
+
+        function calculateRoute() {
+            var startAddress = document.getElementById('startAddress').value;
+            var endAddress = document.getElementById('endAddress').value;
+
+            clearMap();
+            routeCoordinates = [];
+
+            function getCoordinates(address, callback) {
+                var url = 'https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(address);
+
+                fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.length > 0) {
+                            var coordinates = [data[0].lat, data[0].lon];
+                            callback(coordinates);
+                        } else {
+                            alert('Invalid address. Please enter a valid address.');
+                        }
+                    });
+            }
+
+            getCoordinates(startAddress, function (startCoords) {
+                getCoordinates(endAddress, function (endCoords) {
+                    control = L.Routing.control({
+                        waypoints: [
+                            L.latLng(startCoords[0], startCoords[1]),
+                            L.latLng(endCoords[0], endCoords[1])
+                        ],
+                        routeWhileDragging: false,
+                        plan: L.Routing.plan([
+                            L.latLng(startCoords[0], startCoords[1]),
+                            L.latLng(endCoords[0], endCoords[1])
+                        ], {
+                            createMarker: function (i, wp) {
+                                var icon = '';
+                                if (i === 0) {
+                                    icon = 'Start';
+                                } else if (i === 1) {
+                                    icon = 'Destination';
+                                }
+                                return L.marker(wp.latLng, {
+                                    draggable: false,
+                                    icon: L.divIcon({className: 'waypoint', html: icon})
+                                });
+                            }
+                        }),
+                        
+                        showAlternatives: false,
+                        addWayPoints:false,
+                        altLineOptions: {styles: [{color: 'green', opacity: 0.7}]}, units: 'imperial'
+                    }).addTo(map);
+
+                    control.on('routesfound', function(e) {
+                        var route = e.routes[0];
+                        routeCoordinates = [];
+                        route.coordinates.forEach(function(coord) {
+                            routeCoordinates.push([coord.lat, coord.lng]);
+                        });
+
+                        // Calculate total driving time in seconds
+                        var totalDriveTime = route.summary.totalTime;
+
+                        // Convert total driving time to hours and minutes
+                        var hours = Math.floor(totalDriveTime / 3600); // 1 hour = 3600 seconds
+                        var remainingSeconds = totalDriveTime % 3600;
+                        var minutes = Math.floor(remainingSeconds / 60);
+
+                        // Adjust driving time based on conditions
+                        if (hours >= 8 && hours < 11) {
+                            minutes += 30; // Add 30 minutes if driving time exceeds 8 hours
+                        } else if (hours >= 11) {
+                            hours += 24; // Add 24 hours if driving time exceeds 11 hours
+                        }
+
+                        // Adjust hours and minutes if minutes exceed 60
+                        if (minutes >= 60) {
+                            hours += Math.floor(minutes / 60);
+                            minutes %= 60;
+                        }
+
+                        // Log adjusted driving time to the console
+                        if (hours > 0) {
+                            console.log('Total driving time:', hours, 'hours', minutes, 'minutes');
+                        } else {
+                            console.log('Total driving time:', minutes, 'minutes');
+                        }
+
+                        var complianceCell = document.querySelector('#compliance-cell');
+                        if (hours > 0) {
+                            complianceCell.innerText = hours + ' hours ' + minutes + ' minutes';
+                        } else {
+                            complianceCell.innerText = minutes + ' minutes';
+                        }
+                    });
+                });
+            });
+            setTimeout(function() {map.invalidateSize();}, 100);
+        }
+        document.addEventListener("DOMContentLoaded", function() {
+            setTimeout(function() {
+                map.invalidateSize();
+            }, 100);
+        });
+ 
+
+        function save_route() {
+            var data = {
+                startAddress: document.getElementById('startAddress').value,
+                endAddress: document.getElementById('endAddress').value,
+                routeCoordinates: routeCoordinates,
+            };
+
+            fetch('/generate-route', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Success:', data);
+                // Increment the route ID for the next route
+                alert('Route saved successfully!');
+            })
+            .catch((error) => console.error('Error:', error));
+        }
+
+        function clearMap() {
+            if (control) {
+                map.removeControl(control);
+                control = null;
+            }
+
+            map.eachLayer(function (layer) {
+                if (layer instanceof L.Marker) { 
+                    map.removeLayer(layer);
+                }
+            });
+        }
+        control.on('routesfound', function(e) {
+            var routes = e.routes;
+            var summary = routes[0].summary;
+            routeCoordinates = [];
+            routes[0].coordinates.forEach(function(coord) {
+                routeCoordinates.push([coord.lat, coord.lng]);
+            });
+            console.log(routeCoordinates); 
+        });
+        control.on('routesfound', function(e) {
+            var route = e.routes[0];
+            routeCoordinates = [];
+            route.coordinates.forEach(function(coord) {
+                routeCoordinates.push([coord.lat, coord.lng]);
+            });
+
+            // Calculate total driving time in seconds
+            var totalDriveTime = route.summary.totalTime;
+
+            // Convert total driving time to hours and minutes
+            var hours = Math.floor(totalDriveTime / 3600); // 1 hour = 3600 seconds
+            var remainingSeconds = totalDriveTime % 3600;
+            var minutes = Math.floor(remainingSeconds / 60);
+
+            // Adjust driving time based on conditions
+            if (hours >= 8 && hours < 11) {
+                minutes += 30; // Add 30 minutes if driving time exceeds 8 hours
+            } else if (hours >= 11) {
+                hours += 24; // Add 24 hours if driving time exceeds 11 hours
+            }
+
+            // Adjust hours and minutes if minutes exceed 60
+            if (minutes >= 60) {
+                hours += Math.floor(minutes / 60);
+                minutes %= 60;
+            }
+
+            // Log adjusted driving time to the console
+            if (hours > 0) {
+                console.log('Total driving time:', hours, 'hours', minutes, 'minutes');
+            } else {
+                console.log('Total driving time:', minutes, 'minutes');
+            }
+        });
+        function calculateGrade() {
+            var expectedTime = new Date(document.getElementById("expected_time").value);
+            var actualTime = new Date(document.getElementById("actual_time").value);
+            var difference = Math.abs(expectedTime - actualTime); // Difference in milliseconds
+            var minutesDifference = Math.round(difference / (1000 * 60)); // Convert milliseconds to minutes
+            document.getElementById("grade").innerText = minutesDifference + " minutes off";
+        }
+    </script>
+
+<style>
+    body {
+        font-family: 'Arial', sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: rgb(231, 227, 227);
+    }
+
+    #banner {
+        background-color: #3453db;
+        color: #fff;
+        text-align: center;
+        padding: 10px;
+        height: 95px;
+    }
+
+    #map-container {
+        border-radius: 10px;
+        width: 70%; 
+    }
+
+    #address-inputs {
+        position: absolute;
+        /* top: 90%; */
+        /* left: 50%;  */
+        /* transform: translate(-50%, -50%); */
+        z-index: 1000;
+        background-color: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        /* width: 57%; */
+    }
+
+    label {
+        margin-right: 5px;
+    }
+
+    input {
+        margin-bottom: 10px;
+    }
+    #logo{
+        height: 100px;
+        width: 100px;
+        border-radius:20px ;
+    }
+
+    button {
+        background-color: #3453db;
+        color: #fff;
+        border: none;
+        padding: 5px 10px;
+        cursor: pointer;
+        margin-right: 5px;
+        border-radius: 10px;
+    }
+
+    .weather-marker {
+        background-color: #fff;
+        border: 1px solid #000;
+        padding: 5px;
+        text-align: center;
+    }
+   
+
+    #map {
+        height: 690px;
+        width: 100%;
+        margin: 0 auto;
+        margin-top: 10px;
+    }
+    #flex-container {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start; 
+        margin-bottom: 10px;
+    }
+    #left-table, #right-table {
+        width: 30%;
+        margin: 0 auto;
+        background-color: white;
+        margin-top: 10px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        
+    }
+    th{
+        text-align: center;
+    }
+    
+
+
+    
+</style>
+
+</body>

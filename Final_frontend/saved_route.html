@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trail</title>
+    <link rel="icon" href="{{ url_for('static', filename='trail_logo.png') }}" type="image/png">
+
+    <!-- Leaflet CSS and JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <!-- Leaflet Routing Machine CSS and JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+</head>
+<body>
+    <div id="banner">
+        <a href="/home">
+            <img src="{{ url_for('static', filename='trail_logo.png') }}" alt="Trail Logo" id="logo">
+        </a>
+    </div>
+
+    
+    <div id="flex-container">
+    
+        <div id="map-container">
+            <div id="map" style="border-radius: 10px;"></div>
+        </div>
+    
+        <div id="right-table">
+            <!-- Example content for right table -->
+            <table style="width: 100%;">
+                <tr>
+                    <th>Start Address</th>
+                    <th>End Address</th>
+                </tr>
+                <tr>
+                    <td>{{ start_address }}</td>
+                    <td>{{ end_address }}</td>
+                </tr>
+            </table>
+        </div>
+    </div>
+    
+    <br>
+
+    <!-- Input fields for start and end addresses -->
+  
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            plotRoute();
+        });
+
+        function plotRoute() {
+            var map = L.map('map').setView([37.0902, -95.7129], 4);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: ''
+            }).addTo(map);
+
+            var routeCoordinates = {{ route_coordinates | safe }};
+            console.log('Route Coordinates:', routeCoordinates); // Log the route coordinates for debugging
+
+            if (Array.isArray(routeCoordinates) && routeCoordinates.length > 0) {
+                var polyline = L.polyline(routeCoordinates, { color: 'blue' }).addTo(map);
+                map.fitBounds(polyline.getBounds());
+            } else {
+                console.error('Error: Route coordinates are empty or invalid.');
+            }
+            
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            setTimeout(function() {
+                map.invalidateSize();
+            }, 100);
+        });
+ 
+        function save_route()
+        {
+            var data = {
+                startAddress: document.getElementById('startAddress').value,
+                endAddress: document.getElementById('endAddress').value,
+                routeCoordinates: routeCoordinates,
+            };
+
+            fetch('/generate-route', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            })
+            .then(response => response.json())
+            .then(data => console.log('Success:', data))
+            .catch((error) => console.error('Error:', error));
+
+        }
+
+        function clearMap() {
+            if (control) {
+                map.removeControl(control);
+                control = null;
+            }
+
+            map.eachLayer(function (layer) {
+                if (layer instanceof L.Marker) { 
+                    map.removeLayer(layer);
+                }
+            });
+        }
+        control.on('routesfound', function(e) {
+            var routes = e.routes;
+            var summary = routes[0].summary;
+            routeCoordinates = [];
+            routes[0].coordinates.forEach(function(coord) {
+                routeCoordinates.push([coord.lat, coord.lng]);
+            });
+            console.log(routeCoordinates); 
+        });
+        
+
+    </script>
+
+<style>
+    body {
+        font-family: 'Arial', sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: rgb(231, 227, 227);
+    }
+
+    #banner {
+        background-color: #3453db;
+        color: #fff;
+        text-align: center;
+        padding: 10px;
+        height: 95px;
+    }
+
+    #map-container {
+        border-radius: 10px;
+        width: 70%; 
+    }
+
+    #address-inputs {
+        position: absolute;
+        /* top: 90%; */
+        /* left: 50%;  */
+        /* transform: translate(-50%, -50%); */
+        z-index: 1000;
+        background-color: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        /* width: 57%; */
+    }
+
+    label {
+        margin-right: 5px;
+    }
+
+    input {
+        margin-bottom: 10px;
+    }
+    #logo{
+        height: 100px;
+        width: 100px;
+        border-radius:20px ;
+    }
+
+    button {
+        background-color: #3453db;
+        color: #fff;
+        border: none;
+        padding: 5px 10px;
+        cursor: pointer;
+        margin-right: 5px;
+        border-radius: 10px;
+    }
+
+    .weather-marker {
+        background-color: #fff;
+        border: 1px solid #000;
+        padding: 5px;
+        text-align: center;
+    }
+   
+
+    #map {
+        height: 690px;
+        width: 100%;
+        margin: 0 auto;
+        margin-top: 10px;
+    }
+    #flex-container {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start; 
+        margin-bottom: 10px;
+    }
+    #left-table, #right-table {
+        width: 30%;
+        margin: 0 auto;
+        background-color: white;
+        margin-top: 10px;
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        
+    }
+    th{
+        text-align: center;
+    }
+    
+
+
+    
+</style>
+
+</body>

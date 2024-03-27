@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trail</title>
+
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+</head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trail</title>
+
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+</head>
+<body>
+   
+    <div id="banner">
+        <img src="{{ url_for('static', filename='trail_logo.png') }}" alt="Trail Logo" id="logo">
+    </div>
+    <br>
+
+    <div id="content">
+        <div id="menu-box">
+            <table id="routes-table">
+                <tr>
+                    <td colspan="3" id="save">Saved Routes</td>
+                </tr>
+                <tr>
+                    <td>Start Location</td>
+                    <td>Destination</td>
+                    <td><button id="create-route-btn" onclick="window.location.href='/generate-route'">Create Route +</button></td>
+                </tr>
+            </table>
+            
+        </div>
+    </div>
+    <button onclick="logout()" id="logout-btn">Logout</button>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            fetchSavedRoutes();
+        });
+        
+        function fetchSavedRoutes() {
+            fetch('/api/saved-routes')
+            .then(response => response.json())
+            .then(routes => {
+                if (routes && routes.length > 0) {
+                    updateRoutesTable(routes);
+                }
+            })
+            .catch(error => console.error('Error fetching saved routes:', error));
+        }
+        
+        function updateRoutesTable(routes) {
+            const table = document.querySelector('#routes-table');
+            while (table.rows.length > 2) {
+                table.deleteRow(-1);
+            }
+            routes.forEach(route => {
+                console.log(route);
+                const row = table.insertRow(-1); 
+                const startCell = row.insertCell(0);
+                const endCell = row.insertCell(1);
+                const actionCell = row.insertCell(2);
+
+                startCell.textContent = route.startAddress;
+                endCell.textContent = route.endAddress;
+                
+                const viewButton = document.createElement('button');
+                viewButton.textContent = 'View';
+                viewButton.onclick = function() {
+                    window.location.href = '/saved_route/'+ route.id;
+                };
+                actionCell.appendChild(viewButton);
+            });
+        }
+        function searchRoute(buttonId) {
+            fetch(`/api/search-route?button_id=${buttonId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to retrieve route data');
+                }
+                return response.json();
+            })
+            .then(route => {
+                
+                console.log('Route:', route);
+            })
+            .catch(error => {
+                console.error('Error:', error.message);
+            });
+        }
+
+        function logout() {
+            
+            fetch('/logout', {
+                method: 'GET',
+                credentials: 'same-origin' 
+            })
+            .then(response => {
+                if (response.redirected) {
+                    
+                    window.location.href = response.url;
+                } else {
+                    
+                    console.error('Logout failed');
+                }
+            })
+            .catch(error => {
+                console.error('Error during logout:', error);
+            });
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Helvetica', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: rgb(231, 227, 227);
+            display: flex;
+            flex-direction: column;
+            height: 100vh; 
+        }
+
+        #banner {
+            background-color: #3453db;
+            color: #fff;
+            text-align: center;
+            padding: 10px;
+            height: 100px;
+            flex: 0 0 auto; 
+        }
+
+        #logo {
+            height: 100%; 
+            width: auto; 
+            border-radius: 20px;
+        }
+
+        #content {
+            
+            display: flex;
+            justify-content: center;
+            align-items: flex-end; 
+            padding-bottom: 20px; 
+        }
+
+        #menu-box {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-height: 500px; 
+            overflow-y: auto; 
+            width: 700px;
+            
+        }
+
+        #routes-table {
+            width: 100%;
+        }
+
+        tr {
+            border-bottom: 3px solid black;
+        }
+
+        #save {
+            font-size: 20px;
+        }
+
+        button {
+            background-color: #3453db;
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            margin-right: 5px;
+            border-radius: 10px;
+        }
+        #logout-btn {
+            background-color: #3453db;
+            color: #fff;
+            border: none;
+            padding: 5px 20px; 
+            cursor: pointer;
+            margin-right: 5px;
+            border-radius: 10px;
+            width: 100px;
+            margin: 0 auto;
+        }
+    </style>
+</body>
